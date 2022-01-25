@@ -16,7 +16,7 @@
 """Training library."""
 
 import os
-from typing import Optional, Sequence, Tuple, Type
+from typing import Callable, Optional, Sequence, Tuple, Type
 
 import gin
 import tensorflow as tf
@@ -29,13 +29,8 @@ def lr_schedule(
     lr: float,
     divisions: Sequence[Tuple[int, float]] = ((100, 2.0), (200, 2.0))):
   """Return the value of the learning rate at the epoch."""
-  factor = 1.0
-  for div in divisions:
-    step, value = div
-    if epoch < step:
-      break
-    factor /= value
-  return factor * lr
+  factor = dict(divisions).get(epoch, 1.0)
+  return lr / factor
 
 
 @gin.configurable
@@ -43,6 +38,7 @@ def train(load_data_fn,
           model_cls: Type[tf.keras.Model],
           optimizer_cls: Type[tf.keras.optimizers.Optimizer],
           num_epochs: int = 200,
+          scheduler_fn: Callable[[int, float, ...], float] = lr_schedule,
           workdir: Optional[str] = '/tmp/diffstride/') -> tf.keras.Model:
   """Runs the training using keras .fit way."""
   train_ds, test_ds, info = load_data_fn()
@@ -56,7 +52,7 @@ def train(load_data_fn,
                 loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                 metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
 
-  callbacks = [tf.keras.callbacks.LearningRateScheduler(lr_schedule)]
+  callbacks = [tf.keras.callbacks.LearningRateScheduler(scheduler_fn)]
   if workdir is not None:
     callbacks.extend([
         tf.keras.callbacks.TensorBoard(
