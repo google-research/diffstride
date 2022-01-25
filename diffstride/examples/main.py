@@ -40,7 +40,7 @@ flags.DEFINE_string(
     'workdir', None, 'Sets the directory where to save tfevents.')
 flags.DEFINE_integer('seed', 1, 'Used for replication.')
 flags.DEFINE_string('configs_folder',
-                    'third_party/py/diffstride/examples',
+                    'diffstride/examples',
                     'Where to find the gin config files.')
 FLAGS = flags.FLAGS
 
