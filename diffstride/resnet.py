@@ -84,6 +84,7 @@ class ResidualLayer(tf.keras.layers.Layer):
     self._strided_conv = conv2d(
         filters, kernel_size, strides=conv_strides, padding='same',
         channels_first=channels_first, weight_decay=weight_decay)
+
     # The second convolution is a regular one with no strides, no matter what.
     self._unstrided_conv = conv2d(
         filters, kernel_size, strides=(1, 1), padding='same',
@@ -154,30 +155,34 @@ class Resnet(tf.keras.Sequential):
                output_activation: Optional[str] = None,
                id_only: Sequence[int] = (),
                channels_first: bool = True,
+               pooling_cls=None,
                weight_decay: float = 5e-3,
                **kwargs):
     if len(filters) != len(strides):
       raise ValueError(f'The number of `filters` ({len(filters)}) should match'
                        f' the number of strides ({len(strides)})')
-    layers = [tf.keras.layers.Permute((3, 1, 2))] if channels_first else []
-    layers.extend([
-        tf.keras.layers.ZeroPadding2D(
-            padding=(1, 1), data_format=data_format(channels_first)),
-        conv2d(filters[0], 3, strides=strides[0], padding='valid',
+    df = data_format(channels_first)
+    layers = [
+        tf.keras.layers.Permute((3, 1, 2)) if channels_first else None,
+        tf.keras.layers.ZeroPadding2D(padding=(1, 1), data_format=df),
+        conv2d(filters[0], 3, padding='valid',
+               strides=(1, 1) if pooling_cls is not None else strides[0],
                channels_first=channels_first, weight_decay=weight_decay),
+        pooling_cls(
+            strides=strides[0], data_format=df) if pooling_cls else None,
         batch_norm(channels_first),
         tf.keras.layers.ReLU(),
-    ])
+    ]
     for i, (num_filters, stride) in enumerate(zip(filters[1:], strides[1:])):
       layers.append(ResnetBlock(filters=num_filters,
                                 strides=stride,
                                 project_first=(i not in id_only),
                                 channels_first=channels_first,
                                 weight_decay=weight_decay,
+                                pooling_cls=pooling_cls,
                                 **kwargs))
     layers.extend([
-        tf.keras.layers.GlobalAveragePooling2D(
-            data_format=data_format(channels_first)),
+        tf.keras.layers.GlobalAveragePooling2D(data_format=df),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(
             num_output_classes,
@@ -187,7 +192,7 @@ class Resnet(tf.keras.Sequential):
             bias_regularizer=tf.keras.regularizers.L2(weight_decay),
             ),
         ])
-    super().__init__(layers)
+    super().__init__(list(filter(None, layers)))
 
 
 @gin.configurable
