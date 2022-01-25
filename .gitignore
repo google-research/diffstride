@@ -1,0 +1,18 @@
+*.pyc
+*.so
+*.egg-info
+*.whl
+
+build/bazel*
+dist/
+__pycache__/
+.ipynb_checkpoints
+.DS_Store
+.pytype/
+
+# virtualenv/venv directories
+venv/
+bin/
+include/
+lib/
+share/

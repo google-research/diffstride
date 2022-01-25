@@ -1,0 +1,37 @@
+from __gin__ import dynamic_registration
+import tensorflow as tf
+import diffstride.examples.data as data
+import diffstride.examples.train as train
+import diffstride.resnet as resnet
+import diffstride.pooling as pooling
+
+data.load_datasets.name = 'cifar10'
+data.load_datasets.batch_size = 256
+
+train.train:
+  load_data_fn = @data.load_datasets
+  model_cls = @resnet.resnet18
+  optimizer_cls = @tf.keras.optimizers.SGD
+  num_epochs = 400
+
+tf.keras.optimizers.SGD:
+  learning_rate = 1e-1
+  momentum = 0.9
+train.lr_schedule.divisions = [(200, 10.0), (300, 10.0)]
+
+
+# Initialize the strides differently if needed.
+resnet.resnet18.strides = [1, 1, 2, 2, 2]
+resnet.Resnet:
+  output_activation = 'softmax'
+  weight_decay = 5e-3
+
+# Set to `None` for baseline.
+resnet.ResidualLayer.pooling_cls = @pooling.LearnableSpectralPooling
+pooling.LearnableSpectralPooling:
+  smoothness_factor = 4.0
+  cropping = True
+  trainable = True
+  shared_stride = False
+  lower_limit_stride = None
+  upper_limit_stride = None
