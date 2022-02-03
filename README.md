@@ -1,6 +1,6 @@
 # Diffstride
 
-This is the code for the ICLR22 paper [Learning Strides in Convolutional Neural Network](https://openreview.net/forum?id=M752z9FKJP) by R. Riad, O. Teboul, D. Grangier, and N. Zeghidour. Compared to the experiments described in the paper, this implementation uses a [Pre-Act Resnet](https://arxiv.org/abs/1603.05027) and uses [Mixup](https://arxiv.org/abs/1710.09412) in training.
+This is the code for the ICLR22 paper [Learning Strides in Convolutional Neural Network](https://openreview.net/forum?id=M752z9FKJP) by R.Riad, O. Teboul, D. Grangier, and N. Zeghidour. Compared to the experiments described in the paper, this implementation uses a [Pre-Act Resnet](https://arxiv.org/abs/1603.05027) and uses [Mixup](https://arxiv.org/abs/1710.09412) in training.
 
 ## Installation
 
@@ -20,9 +20,9 @@ pip install -e .
 To run an example training on CIFAR10 and save the result in TensorBoard:
 
 ```
-python3 -m diffstride.example.main \
+python3 -m diffstride.examples.main \
   --gin_config=cifar10.gin \
-  --gin_bindings="train.workdir=/tmp/exp/diffstride/resnet18/"
+  --gin_bindings="train.workdir = '/tmp/exp/diffstride/resnet18/'"
 ```
 
 ## Using custom parameters
