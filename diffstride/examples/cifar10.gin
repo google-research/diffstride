@@ -1,12 +1,14 @@
-from __gin__ import dynamic_registration
-import tensorflow as tf
+import diffstride.examples.external_configurables
+
 import diffstride.examples.data as data
 import diffstride.examples.train as train
 import diffstride.resnet as resnet
 import diffstride.pooling as pooling
 
-data.load_datasets.name = 'cifar10'
-data.load_datasets.batch_size = 256
+data.load_datasets:
+  name = 'cifar10'
+  batch_size = 128
+  mixup_alpha = 0.2
 
 train.train:
   load_data_fn = @data.load_datasets
@@ -15,20 +17,31 @@ train.train:
   num_epochs = 400
 
 tf.keras.optimizers.SGD:
-  learning_rate = 1e-1
+  learning_rate = @tf.keras.optimizers.schedules.PiecewiseConstantDecay()
   momentum = 0.9
-train.lr_schedule.divisions = [(200, 10.0), (300, 10.0)]
 
+tf.keras.optimizers.schedules.PiecewiseConstantDecay:
+  boundaries = [400, 18_000, 32_000]
+  values = [0.01, 0.1, 0.01, 0.001]
+
+tf.keras.losses.CategoricalCrossentropy:
+  label_smoothing = 0.2
 
 # Initialize the strides differently if needed.
 resnet.resnet18.strides = [1, 1, 2, 2, 2]
 resnet.Resnet:
   output_activation = 'softmax'
-  weight_decay = 5e-3
+  weight_decay = 5e-4
+  # Either @pooling.DiffStride, @pooling.FixedSpectralPooling or None
+  # for strided convolutions.
+  pooling_cls = @pooling.DiffStride
+
+batch_norm:
+  momentum = 0.9
+  epsilon = 1e-5
 
 # Set to `None` for baseline.
-resnet.ResidualLayer.pooling_cls = @pooling.LearnableSpectralPooling
-pooling.LearnableSpectralPooling:
+pooling.DiffStride:
   smoothness_factor = 4.0
   cropping = True
   trainable = True

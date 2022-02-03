@@ -40,15 +40,15 @@ def conv2d(
       **kwargs)
 
 
-def batch_norm(channels_first: bool = True):
+@gin.configurable
+def batch_norm(channels_first: bool = True, **kwargs):
   axis = 1 if channels_first else 3
-  return tf.keras.layers.BatchNormalization(
-      momentum=0.9, epsilon=1e-5, axis=axis)
+  return tf.keras.layers.BatchNormalization(axis=axis, **kwargs)
 
 
 @gin.configurable
 class ResidualLayer(tf.keras.layers.Layer):
-  """A generic residual layer for Resnet.
+  """A generic residual layer for Resnet, using the pre-act formulation.
 
   This resnet can represent an `IdBlock` or a `ProjBlock` by setting the
   `project` parameter and can be compatible with Spectral or Learnable poolings
@@ -56,6 +56,9 @@ class ResidualLayer(tf.keras.layers.Layer):
 
   The pooling_cls and strides will be overwritten automatically in case of an
   ID block.
+
+  The pre-act formulation applies batch norm and non-linearity before the first
+  conv.
   """
 
   def __init__(self,
@@ -91,27 +94,29 @@ class ResidualLayer(tf.keras.layers.Layer):
         channels_first=channels_first, weight_decay=weight_decay)
     self._bns = tuple(batch_norm(channels_first) for _ in range(2))
 
-    self._shortcut_conv, self._shortcut_bn = None, None
+    self._shortcut_conv = None
     if project:
       self._shortcut_conv = conv2d(
-          filters, kernel_size=1, strides=conv_strides, padding='valid',
+          filters, kernel_size=1, strides=conv_strides, padding='same',
           channels_first=channels_first, weight_decay=weight_decay)
-      self._shortcut_bn = batch_norm(channels_first)
 
   def call(self, inputs: tf.Tensor, training: bool = True) -> tf.Tensor:
-    x = self._strided_conv(inputs)
+    shortcut_x = inputs
+
+    x = self._bns[0](inputs, training=training)
+    x = tf.nn.relu(x)
+    x = self._strided_conv(x)
     x = self._pooling(x)
-    x = self._bns[0](x, training=training)
+
+    x = self._bns[1](x, training=training)
     x = tf.nn.relu(x)
     x = self._unstrided_conv(x)
-    x = self._bns[1](x, training=training)
+
     if self._shortcut_conv is not None:
-      shortcut_x = self._shortcut_conv(inputs)
+      shortcut_x = self._shortcut_conv(shortcut_x)
       shortcut_x = self._pooling(shortcut_x)
-      shortcut_x = self._shortcut_bn(shortcut_x, training=training)
-    else:
-      shortcut_x = inputs
-    return tf.nn.relu(x + shortcut_x)
+
+    return x + shortcut_x
 
 
 @gin.configurable
@@ -140,7 +145,7 @@ class ResnetBlock(tf.keras.Sequential):
 
 @gin.configurable
 class Resnet(tf.keras.Sequential):
-  """A generic Resnet class.
+  """A generic Resnet class, using the pre-activation implementation.
 
   Depending on the number of blocks and the used filters, it can easily
   instantiate a Resnet18 or Resnet56.
@@ -164,14 +169,11 @@ class Resnet(tf.keras.Sequential):
     df = data_format(channels_first)
     layers = [
         tf.keras.layers.Permute((3, 1, 2)) if channels_first else None,
-        tf.keras.layers.ZeroPadding2D(padding=(1, 1), data_format=df),
-        conv2d(filters[0], 3, padding='valid',
+        conv2d(filters[0], 3, padding='same',
                strides=(1, 1) if pooling_cls is not None else strides[0],
                channels_first=channels_first, weight_decay=weight_decay),
         pooling_cls(
             strides=strides[0], data_format=df) if pooling_cls else None,
-        batch_norm(channels_first),
-        tf.keras.layers.ReLU(),
     ]
     for i, (num_filters, stride) in enumerate(zip(filters[1:], strides[1:])):
       layers.append(ResnetBlock(filters=num_filters,
@@ -182,6 +184,8 @@ class Resnet(tf.keras.Sequential):
                                 pooling_cls=pooling_cls,
                                 **kwargs))
     layers.extend([
+        batch_norm(channels_first),
+        tf.keras.layers.ReLU(),
         tf.keras.layers.GlobalAveragePooling2D(data_format=df),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(

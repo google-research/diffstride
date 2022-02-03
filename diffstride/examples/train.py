@@ -16,22 +16,11 @@
 """Training library."""
 
 import os
-from typing import Optional, Sequence, Tuple, Type
+from typing import Optional, Type
+from absl import logging
 
 import gin
 import tensorflow as tf
-
-
-
-@gin.configurable
-def lr_schedule(
-    epoch: int,
-    lr: float,
-    divisions: Sequence[Tuple[int, float]] = ((100, 2.0), (200, 2.0))
-    ) -> float:
-  """Returns the value of the learning rate at the epoch."""
-  factor = dict(divisions).get(epoch, 1.0)
-  return lr / factor
 
 
 @gin.configurable
@@ -39,27 +28,31 @@ def train(load_data_fn,
           model_cls: Type[tf.keras.Model],
           optimizer_cls: Type[tf.keras.optimizers.Optimizer],
           num_epochs: int = 200,
-          scheduler_fn=lr_schedule,
           workdir: Optional[str] = '/tmp/diffstride/') -> tf.keras.Model:
   """Runs the training using keras .fit way."""
-  train_ds, test_ds, info = load_data_fn()
-  _, label_key = info.supervised_keys
+  train_ds, test_ds, num_classes = load_data_fn()
+
+  strategy = tf.distribute.MirroredStrategy()
+  logging.info('Number of devices: %d', strategy.num_replicas_in_sync)
 
   # Decides to run channels first on GPU and channels last otherwise.
-  model = model_cls(
-      num_output_classes=info.features[label_key].num_classes,
-      channels_first=bool(tf.config.list_physical_devices('GPU')))
-  model.compile(optimizer=optimizer_cls(),
-                loss=tf.keras.losses.SparseCategoricalCrossentropy(),
-                metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+  with strategy.scope():
+    model = model_cls(
+        num_output_classes=num_classes,
+        channels_first=bool(tf.config.list_physical_devices('GPU')))
+    model.compile(optimizer=optimizer_cls(),
+                  loss=tf.keras.losses.CategoricalCrossentropy(),
+                  metrics=[tf.keras.metrics.CategoricalAccuracy()])
 
-  callbacks = [tf.keras.callbacks.LearningRateScheduler(scheduler_fn)]
+  callbacks = []
   if workdir is not None:
     callbacks.extend([
         tf.keras.callbacks.TensorBoard(
             log_dir=workdir, write_steps_per_second=True),
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(workdir, 'ckpts'))
+            filepath=os.path.join(workdir, 'ckpts')),
+        tf.keras.callbacks.experimental.BackupAndRestore(
+            backup_dir=os.path.join(workdir, 'backup'))
     ])
   model.fit(train_ds, validation_data=test_ds,
             epochs=num_epochs, callbacks=callbacks)

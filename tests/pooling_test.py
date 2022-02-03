@@ -47,7 +47,7 @@ class PoolingTest(tf.test.TestCase, parameterized.TestCase):
   def test_learnable_spectral_pooling(self, data_format):
     is_channels_last = data_format == 'channels_last'
     shape = (1, 64, 64, 3) if is_channels_last else (1, 3, 64, 64)
-    pool = pooling.LearnableSpectralPooling(
+    pool = pooling.DiffStride(
         strides=(2, 4), data_format=data_format)
     inputs = tf.random.uniform(shape)
     output = pool(inputs)

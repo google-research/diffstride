@@ -182,7 +182,7 @@ class StrideConstraint(tf.keras.constraints.Constraint):
 
 
 @gin.configurable
-class LearnableSpectralPooling(tf.keras.layers.Layer):
+class DiffStride(tf.keras.layers.Layer):
   """Learnable Spectral pooling layer, computed in the Fourier domain.
 
   The adaptive window function is inspired from
@@ -299,7 +299,7 @@ class LearnableSpectralPooling(tf.keras.layers.Layer):
     strided_width = tf.cast(width, tf.float32) / horizontal_stride
     # Warning: Little discrepancy for the init of strided_height with
     #   FixedSpectralPooling. As the gradient of the operation below is 0, it
-    #   is removed for LearnableSpectralPooling.
+    #   is removed for DiffStride.
     # strided_height = strided_height - tf.math.floormod(strided_height, 2)
     # The parameter 2 is the minimum to avoid collapse of the feature map.
     strided_height = tf.math.maximum(strided_height, 2.0)
