@@ -194,7 +194,6 @@ class DiffStride(tf.keras.layers.Layer):
                smoothness_factor: float = 4.0,
                cropping: bool = True,
                trainable: bool = True,
-               gaussian_filtering: bool = False,
                shared_stride: bool = False,
                lower_limit_stride: Optional[float] = None,
                upper_limit_stride: Optional[float] = None,
@@ -208,13 +207,11 @@ class DiffStride(tf.keras.layers.Layer):
     Args:
       strides: Fractional strides to init before learning the reduction in the
         Fourier domain.
-      smoothness_factor: Smooothness factor to reduce/crop the input feature map
+      smoothness_factor: Smoothness factor to reduce/crop the input feature map
         in the Fourier domain.
       cropping: Boolean to specify if the layer crops or set to 0 the
         coefficients outside the cropping window in the Fourier domain.
       trainable: Boolean to specify if the stride is learnable.
-      gaussian_filtering: Boolean to specify if the window to filter the Fourier
-        map is an half-gaussian or the adaptive window function with ramp.
       shared_stride: If `True`, a single parameter is shared for vertical and
         horizontal strides.
       lower_limit_stride: Lower limit for the stride. It can be useful when
@@ -230,7 +227,6 @@ class DiffStride(tf.keras.layers.Layer):
     self._smoothness_factor = smoothness_factor
     self._shared_stride = shared_stride
     self.trainable = trainable
-    self._gaussian_filtering = gaussian_filtering
     self._lower_limit_stride = lower_limit_stride
     self._upper_limit_stride = upper_limit_stride
     self._channels_first = data_format == CHANNELS_FIRST
@@ -317,18 +313,10 @@ class DiffStride(tf.keras.layers.Layer):
     output = f_inputs * horizontal_mask[None, None, None, :]
     output = output * vertical_mask[None, None, :, None]
     if self._cropping:
-      if self._gaussian_filtering:
-        # We crop when the Gaussian Filter value is at exp(-9/2)=1.1% since
-        # we crop at 3 sigmas.
-        horizontal_to_keep = tf.stop_gradient(
-            tf.where(tf.cast(horizontal_mask, tf.float32) > 0.011)[:, 0])
-        vertical_to_keep = tf.stop_gradient(
-            tf.where(tf.cast(vertical_mask, tf.float32) > 0.011)[:, 0])
-      else:
-        horizontal_to_keep = tf.stop_gradient(
-            tf.where(tf.cast(horizontal_mask, tf.float32) > 0.)[:, 0])
-        vertical_to_keep = tf.stop_gradient(
-            tf.where(tf.cast(vertical_mask, tf.float32) > 0.)[:, 0])
+      horizontal_to_keep = tf.stop_gradient(
+          tf.where(tf.cast(horizontal_mask, tf.float32) > 0.)[:, 0])
+      vertical_to_keep = tf.stop_gradient(
+          tf.where(tf.cast(vertical_mask, tf.float32) > 0.)[:, 0])
 
       output = tf.gather(output, indices=vertical_to_keep, axis=2)
       output = tf.gather(output, indices=horizontal_to_keep, axis=3)
