@@ -1,6 +1,10 @@
-# Diffstride
+# DiffStride: Learning strides in convolutional neural networks
 
-This is the code for the ICLR22 paper [Learning Strides in Convolutional Neural Network](https://openreview.net/forum?id=M752z9FKJP) by R.Riad, O. Teboul, D. Grangier, and N. Zeghidour. Compared to the experiments described in the paper, this implementation uses a [Pre-Act Resnet](https://arxiv.org/abs/1603.05027) and uses [Mixup](https://arxiv.org/abs/1710.09412) in training.
+![Overview](./images/diffstride.png)
+
+DiffStride is a pooling layer with learnable strides. Unlike strided convolutions, average pooling or max-pooling that require cross-validating stride values at each layer, DiffStride can be initialized with an arbitrary value at each layer (e.g. `(2, 2`) and during training its strides will be optimized for the task at hand.
+
+We describe DiffStride in our ICLR 2022 paper [Learning Strides in Convolutional Neural Network](https://arxiv.org/abs/2202.01653). Compared to the experiments described in the paper, this implementation uses a [Pre-Act Resnet](https://arxiv.org/abs/1603.05027) and uses [Mixup](https://arxiv.org/abs/1710.09412) in training.
 
 ## Installation
 
